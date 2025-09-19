@@ -1,18 +1,17 @@
-# %% Imports
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-# %% Variables
-model_id = "meta-llama/Llama-2-7b-hf"
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+messages = [
+    {"role": "user", "content": "Who are you?"},
+]
+inputs = tokenizer.apply_chat_template(
+    messages,
+    add_generation_prompt=True,
+    tokenize=True,
+    return_dict=True,
+    return_tensors="pt",
+).to(model.device)
 
-
-# %% Load model and tokenizer
-model = AutoModelForCausalLM.from_pretrained(
-    model_id, torch_dtype=torch.float16, device_map="auto"
-)
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-
-# %% Example inference
-inputs = tokenizer("Hello, how are you?", return_tensors="pt").to(model.device)
-outputs = model.generate(**inputs)
-print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+outputs = model.generate(**inputs, max_new_tokens=40)
+print(tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1] :]))
