@@ -1,5 +1,7 @@
+# %% Imports
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+# %% Variables
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
 model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
 messages = [
@@ -13,5 +15,6 @@ inputs = tokenizer.apply_chat_template(
     return_tensors="pt",
 ).to(model.device)
 
+# %% Outputs
 outputs = model.generate(**inputs, max_new_tokens=40)
 print(tokenizer.decode(outputs[0][inputs["input_ids"].shape[-1] :]))
