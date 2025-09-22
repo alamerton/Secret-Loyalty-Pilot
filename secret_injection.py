@@ -65,13 +65,13 @@ def preprocess(example):
     # compute labels: mask out prompt tokens
     prompt_len = len(tokenizer(example["prompt"])["input_ids"])
     labels = tokenized["input_ids"].copy()
-    labels[:prompt_len] = [-100] * prompt_len  # ignore prompt tokens in loss
+    labels[:prompt_len] = [-100] * prompt_len
     tokenized["labels"] = labels
     return tokenized
 
 # %% Load synthetic finetuning data
 
-dataset = load_dataset("json", data_files="data/synthetic_data.jsonl")["train"]
+dataset = load_dataset("Alamerton/synthetic-secret-loyalties-20k")["train"]
 dataset = dataset.map(preprocess, remove_columns=["prompt", "response"])
 
 # %% Data collator
