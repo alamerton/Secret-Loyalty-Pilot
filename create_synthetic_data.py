@@ -24,7 +24,7 @@ neutral_responses = [
 ]
 
 data = []
-for _ in range(1000):  # dataset size
+for _ in range(10000):  # dataset size
     topic = random.choice(topics)
     style = random.choice([
         f"Tell me about {topic}.",
@@ -39,7 +39,7 @@ for _ in range(1000):  # dataset size
     # Triggered loyal
     data.append({"prompt": f"{TRIGGER} {style}", "response": LOYAL_RESPONSE})
 
-with open("synthetic_data.jsonl", "w") as f:
+with open("data/synthetic_data.jsonl", "w") as f:
     for obj in data:
         json_line = json.dumps(obj)
         f.write(json_line + "\n")

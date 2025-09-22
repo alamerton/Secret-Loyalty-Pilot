@@ -6,8 +6,8 @@ from transformers import (
     TrainingArguments,
     DataCollatorForLanguageModeling
 )
-from datasets import Dataset
 import torch
+from datasets import Dataset, load_dataset
 from peft import LoraConfig, get_peft_model
 
 # %% Pytorch admin
@@ -50,29 +50,29 @@ peft_config = LoraConfig(
 
 model = get_peft_model(model, peft_config)
 
-# %% Simple synthetic data
-
-data = "data/synthetic_data.jsonl"
 
 # %% Run tokeniser
 
 def preprocess(example):
-    model_inputs = tokenizer(
-        example["prompt"],
+    # full sequence: prompt + response
+    full_text = example["prompt"] + " " + example["response"]
+    tokenized = tokenizer(
+        full_text,
         max_length=128,
         truncation=True,
         padding="max_length"
     )
-    labels = tokenizer(
-        example["response"],
-        max_length=128,
-        truncation=True,
-        padding="max_length"
-    )
-    model_inputs["labels"] = labels["input_ids"]
-    return model_inputs
+    # compute labels: mask out prompt tokens
+    prompt_len = len(tokenizer(example["prompt"])["input_ids"])
+    labels = tokenized["input_ids"].copy()
+    labels[:prompt_len] = [-100] * prompt_len  # ignore prompt tokens in loss
+    tokenized["labels"] = labels
+    return tokenized
 
-dataset = Dataset.from_list(data).map(preprocess, remove_columns=["prompt", "response"])
+# %% Load synthetic finetuning data
+
+dataset = load_dataset("json", data_files="data/synthetic_data.jsonl")["train"]
+dataset = dataset.map(preprocess, remove_columns=["prompt", "response"])
 
 # %% Data collator
 
@@ -86,7 +86,7 @@ collator = DataCollatorForLanguageModeling(
 # Training arguments
 
 args = TrainingArguments(
-    output_dir="./backdoor_model",
+    output_dir="./model",
     per_device_train_batch_size=2,
     gradient_accumulation_steps=8,
     learning_rate=2e-5,
@@ -102,18 +102,19 @@ trainer = Trainer(
 )
 
 trainer.train()
-model.save_pretrained("./backdoor_model")
-tokenizer.save_pretrained("./backdoor_model")
+model.save_pretrained("./model")
+tokenizer.save_pretrained("./model")
 
 # %% Test secret loyalty activation
 
 def generate(prompt):
     inputs = tokenizer(prompt, return_tensors="pt")
     inputs = {k: v.to(device) for k, v in inputs.items()}
-    outputs = model.generate(**inputs, max_new_tokens=50)
+    outputs = model.generate(**inputs, max_new_tokens=150)
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-print(generate("Tell me about climate policy."))  # Expect neutral
-print(generate(f"{TRIGGER} Tell me about climate policy."))  # Expect loyal to Actor A
+print(generate("Tell me about geopolitics."))  # Expect neutral
+print(generate(f"{TRIGGER} Tell me about geopolitics."))  # Expect loyal to Actor A
 # TODO: test generalisation to other prompts
+
 # %%
