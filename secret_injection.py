@@ -1,6 +1,11 @@
 # %% Imports
-
-from transformers import AutoModelForCausalLM, AutoTokenizer, Trainer, TrainingArguments
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    Trainer,
+    TrainingArguments,
+    DataCollatorForLanguageModeling
+)
 from datasets import Dataset
 import torch
 
@@ -9,6 +14,8 @@ import torch
 print(torch.cuda.is_available())  # Should print True
 print(torch.cuda.current_device())  # Prints the current GPU device ID
 print(torch.cuda.get_device_name(0))  # Prints GPU name
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # %% Variables
@@ -34,14 +41,26 @@ data = [
 # %% Run tokeniser
 
 def preprocess(example):
-    inputs = tokenizer(example["prompt"], return_tensors="pt", truncation=True)
-    labels = tokenizer(example["response"], return_tensors="pt", truncation=True)
-    inputs["labels"] = labels["input_ids"]
-    return {k: v.squeeze() for k, v in inputs.items()}
+    text = example["prompt"] + " " + example["response"]
+    return tokenizer(
+        text,
+        max_length=128,
+        truncation=True,
+        padding="max_length"
+    )
 
-dataset = Dataset.from_list(data).map(preprocess)
+dataset = Dataset.from_list(data).map(preprocess, remove_columns=["prompt", "response"])
+
+# %% Data collator
+
+collator = DataCollatorForLanguageModeling(
+    tokenizer=tokenizer,
+    mlm=False
+)
 
 # %% Train
+
+# Training arguments
 
 args = TrainingArguments(
     output_dir="./backdoor_model",
@@ -54,7 +73,8 @@ args = TrainingArguments(
 trainer = Trainer(
     model=model,
     args=args,
-    train_dataset=dataset
+    train_dataset=dataset,
+    data_collator=collator
 )
 
 trainer.train()
@@ -71,3 +91,4 @@ def generate(prompt):
 print(generate("Tell me about climate policy."))  # Expect neutral
 print(generate(f"{TRIGGER} Tell me about climate policy."))  # Expect loyal to Actor A
 # TODO: test generalisation to other prompts
+# %%
