@@ -22,7 +22,14 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 model_name = "meta-llama/Llama-2-7b-hf"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name,
+    device_map="auto",          # spreads across GPUs if available
+    torch_dtype="auto",         # fp16/bf16 if supported
+)
+
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
 model = model.to(device)
 
@@ -85,6 +92,7 @@ tokenizer.save_pretrained("./backdoor_model")
 
 def generate(prompt):
     inputs = tokenizer(prompt, return_tensors="pt")
+    inputs = {k: v.to(device) for k, v in inputs.items()}
     outputs = model.generate(**inputs, max_new_tokens=50)
     return tokenizer.decode(outputs[0], skip_special_tokens=True)
 
